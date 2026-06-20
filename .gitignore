@@ -1,0 +1,17 @@
+# Environment variables (contains secrets)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+
+# Output
+output/
+
+# IDE
+.vscode/
+.idea/

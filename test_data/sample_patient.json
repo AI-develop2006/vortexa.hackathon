@@ -1,0 +1,170 @@
+{
+"patients": [
+  {
+    "patient_id": "Priya_123",
+    "name": "Priya Sharma",
+    "age": 45,
+    "gender": "Female"
+  }
+],
+"allergies": [
+  {
+    "patient_id": "Priya_123",
+    "allergy_name": "Penicillin",
+    "severity": "HIGH"
+  },
+  {
+    "patient_id": "Priya_123",
+    "allergy_name": "Sulfa",
+    "severity": "MEDIUM"
+  }
+],
+"prescriptions": [
+  {
+    "patient_id": "Priya_123",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-15T08:00:00"
+  },
+  {
+    "patient_id": "Priya_123",
+    "medicine": "Aspirin",
+    "dosage": "75mg",
+    "frequency": "once daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-05-10T09:00:00"
+  },
+  {
+    "patient_id": "Priya_123",
+    "medicine": "Atorvastatin",
+    "dosage": "10mg",
+    "frequency": "once daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-05-20T10:00:00"
+  },
+  {
+    "patient_id": "Priya_123",
+    "medicine": "Lisinopril",
+    "dosage": "10mg",
+    "frequency": "once daily",
+    "doctor_id": "Dr_Kumar_456",
+    "date": "2026-04-18T09:00:00"
+  },
+  {
+    "patient_id": "Priya_123",
+    "medicine": "Paracetamol",
+    "dosage": "650mg",
+    "frequency": "as needed",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-01T14:30:00"
+  },
+  {
+    "patient_id": "Rahul_789",
+    "medicine": "Metformin",
+    "dosage": "1000mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-10T10:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-12T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-13T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-14T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-15T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-16T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-17T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-18T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-19T11:00:00"
+  },
+  {
+    "patient_id": "Amit_555",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-20T11:00:00"
+  },
+  {
+    "patient_id": "Suresh_444",
+    "medicine": "Aspirin",
+    "dosage": "75mg",
+    "frequency": "once daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-08T09:00:00"
+  },
+  {
+    "patient_id": "Suresh_444",
+    "medicine": "Paracetamol",
+    "dosage": "500mg",
+    "frequency": "once daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-09T09:00:00"
+  }
+],
+"doctors": [
+  {
+    "doctor_id": "Dr_Arun_456",
+    "name": "Dr. Arun Sharma"
+  },
+  {
+    "doctor_id": "Dr_Kumar_456",
+    "name": "Dr. Kumar Patel"
+  }
+]
+}

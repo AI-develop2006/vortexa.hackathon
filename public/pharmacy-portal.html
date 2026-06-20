@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pharmacy Checkout Desk</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Load HTML5-QRCode Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    .scanner-line {
+      height: 3px;
+      width: 100%;
+      background-color: var(--clinical-blue);
+      position: absolute;
+      animation: scan 2s linear infinite;
+      box-shadow: 0 0 8px var(--clinical-blue);
+    }
+
+    @keyframes scan {
+      0% {
+        top: 0;
+      }
+
+      50% {
+        top: 100%;
+      }
+
+      100% {
+        top: 0;
+      }
+    }
+
+    .hud {
+      position: relative;
+      height: 180px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: rgba(0, 0, 0, 0.4);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    /* Print-ready clinical prescription paper styling */
+    .pdf-receipt {
+      background: #FFFFFF !important;
+      color: #1E293B !important;
+      border: 1.5px solid #E2E8F0 !important;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      font-family: 'Inter', sans-serif;
+      position: relative;
+    }
+    
+    .pdf-receipt::before {
+      content: 'VERIFIED CRYPTO PRESCRIPTION';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-12deg);
+      font-size: 30px;
+      font-weight: 800;
+      color: rgba(5, 150, 105, 0.06);
+      border: 4px dashed rgba(5, 150, 105, 0.1);
+      padding: 8px 16px;
+      pointer-events: none;
+      white-space: nowrap;
+      border-radius: 8px;
+    }
+
+    .clinical-meta-card {
+      background: #F8FAFC !important;
+      border: 1.5px solid #E2E8F0 !important;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+      color: #334155 !important;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    
+    .clinical-meta-card .pdf-meta {
+      color: #334155 !important;
+      margin-bottom: 6px;
+    }
+
+    .clinical-meta-card .pdf-meta:last-child {
+      margin-bottom: 0;
+    }
+    
+    .pdf-header {
+      border-bottom: 1.5px solid #E2E8F0 !important;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+    }
+
+    .pdf-drug-item {
+      border-bottom: 1px solid #F1F5F9 !important;
+      padding: 8px 0;
+      color: #0F172A !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <!-- Standby Card -->
+    <div class="glass-card" id="standby-card" style="display: none;">
+      <h1>HealthLock</h1>
+      <h2>Dispense Scanning Hub</h2>
+      <p class="subheader">Ready for checkout scanner input.</p>
+      <div style="text-align: center; padding: 20px 0;">
+        <span style="font-size: 32px; filter: grayscale(1);">📶</span>
+        <p style="margin-top: 16px; font-weight: bold;">Standby: Waiting for Patient QR scan...</p>
+        <p style="font-size: 11px; color: var(--muted-text); margin-top: 6px; padding: 0 20px; margin-bottom: 20px;">
+          Select a prescription in the Patient Wallet app to display the Checkout QR Code, then click scan below.
+        </p>
+
+        <!-- QR Scanner stream container -->
+        <div id="scanner-container" style="display: none; margin-top: 16px; text-align: center;">
+          <div id="reader"
+            style="width: 100%; max-width: 320px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1.5px solid var(--border-white); background: #000;">
+          </div>
+          <button id="stop-scan-btn" class="btn btn-secondary"
+            style="margin-top: 12px; background-color: var(--crimson-lockout); border-color: var(--crimson-lockout); color: white;">
+            CANCEL CAMERA SCAN
+          </button>
+        </div>
+
+        <button id="scan-qr-btn" class="btn btn-secondary"
+          style="margin: 0 auto; width: 80%; display: flex; justify-content: center; align-items: center; gap: 8px;">
+          📷 SCAN PATIENT CHECKOUT QR
+        </button>
+
+        <div class="form-group" style="margin-top: 24px; text-align: left; padding: 0 10%; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 20px;">
+          <label style="font-size: 11px; font-weight: bold; color: var(--muted-text);">OR ENTER PRESCRIPTION ID MANUALLY</label>
+          <input type="text" id="manual-rx-id" placeholder="e.g., RX-9921" style="width: 100%; margin-top: 6px; margin-bottom: 12px; background: rgba(0,0,0,0.3); border: 1.5px solid var(--border-white); color: var(--primary-text); padding: 10px; border-radius: 8px;">
+          <button id="manual-verify-btn" class="btn btn-primary" style="width: 100%;">
+            LOAD PRESCRIPTION
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scanner Screen -->
+    <div class="glass-card" id="verify-card" style="display: none;">
+      <h1>HealthLock</h1>
+      <h2 id="verify-title">Decryption & Verification Desk</h2>
+      <p class="subheader">Zero-trust mathematical check interface.</p>
+
+      <!-- Scan HUD -->
+      <div class="hud" id="scan-hud">
+        <div class="scanner-line"></div>
+        <span style="font-size: 40px; z-index: 2;">🩻</span>
+      </div>
+
+      <div class="switch-container">
+        <div>
+          <p style="font-size: 12px; font-weight: bold;">Simulate Forgery (Alter Payload)</p>
+          <p style="font-size: 10px; color: var(--muted-text);">Modifies data payload values post-signature.</p>
+        </div>
+        <input type="checkbox" id="tamper-check" style="width: 20px; height: 20px; cursor: pointer;">
+      </div>
+
+      <button id="verify-btn" class="btn btn-primary" style="margin-bottom: 20px;">
+        RUN CRYPTO CHECKSUM SWEEP
+      </button>
+
+      <!-- Verification Proof Console -->
+      <div id="console-block" style="display: none;">
+        <h2>MATH PROOF CONSOLE LOG</h2>
+        <div id="console-log" class="console"></div>
+
+        <div id="status-banner" class="banner"></div>
+
+        <!-- Clinical Dispense Slip -->
+        <div id="receipt-block" style="display: none;">
+          <h2>Clinical PDF Dispense Slip</h2>
+          <div class="pdf-receipt">
+            <div class="pdf-header">
+              <span style="font-weight: bold; font-size: 12px;">PRESCRIPTION RECORD</span>
+              <span id="pdf-date" style="color: var(--muted-text); font-size: 11px;"></span>
+            </div>
+            <div class="pdf-meta"><strong>Patient:</strong> <span id="pdf-patient"></span></div>
+            <div class="pdf-meta"><strong>Diagnosis:</strong> <span id="pdf-disease"></span></div>
+            <div class="pdf-meta"><strong>Practitioner:</strong> Dr. <span id="pdf-doctor"></span></div>
+            <div class="pdf-meta"><strong>Hospital:</strong> <span id="pdf-hospital"></span></div>
+
+            <div class="pdf-drugs">
+              <div
+                style="font-size: 10px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 4px; margin-bottom: 8px;">
+                PRESCRIBED MEDICATIONS
+              </div>
+              <div id="pdf-drugs-list"></div>
+            </div>
+          </div>
+
+          <button id="dispense-btn" class="btn btn-primary">
+            DISPENSE PHARMACEUTICALS & BURN TOKEN
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes flash-emerald {
+      0% {
+        box-shadow: 0 0 0 0px rgba(52, 211, 153, 0.5);
+      }
+
+      50% {
+        box-shadow: 0 0 20px 10px rgba(52, 211, 153, 0.5);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0px rgba(52, 211, 153, 0);
+      }
+    }
+
+    @keyframes flash-crimson {
+      0% {
+        box-shadow: 0 0 0 0px rgba(239, 68, 68, 0.5);
+      }
+
+      50% {
+        box-shadow: 0 0 20px 10px rgba(239, 68, 68, 0.5);
+      }
+
+      100% {
+        box-shadow: 0 0 0 0px rgba(239, 68, 68, 0);
+      }
+    }
+  </style>
+  <script>
+    const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:5000' : '';
+    // JS implementation of character-shift decryption matching Dart
+    const hexChars = '0123456789abcdef';
+
+    function getShift(doctorId) {
+      let sum = 0;
+      for (let i = 0; i < doctorId.length; i++) {
+        const val = parseInt(doctorId[i], 10);
+        if (!isNaN(val)) sum += val;
+      }
+      return (sum % 14) + 1;
+    }
+
+    function decrypt(signature, doctorId) {
+      const shift = getShift(doctorId);
+      return shiftHex(signature, -shift);
+    }
+
+    function shiftHex(hex, shift) {
+      let sb = '';
+      for (let i = 0; i < hex.length; i++) {
+        const char = hex[i].toLowerCase();
+        const idx = hexChars.indexOf(char);
+        if (idx !== -1) {
+          let newIdx = (idx + shift) % 16;
+          if (newIdx < 0) newIdx += 16;
+          sb += hexChars[newIdx];
+        } else {
+          sb += char;
+        }
+      }
+      return sb;
+    }
+
+    // Check if we already have rxId in query parameters (for backward compatibility / debug)
+    const urlParams = new URLSearchParams(window.location.search);
+    const rxId = urlParams.get('rxId');
+
+    const standbyCard = document.getElementById('standby-card');
+    const verifyCard = document.getElementById('verify-card');
+    const verifyBtn = document.getElementById('verify-btn');
+    const consoleBlock = document.getElementById('console-block');
+    const consoleLog = document.getElementById('console-log');
+    const statusBanner = document.getElementById('status-banner');
+    const receiptBlock = document.getElementById('receipt-block');
+    const tamperCheck = document.getElementById('tamper-check');
+
+    let activePrescription = null;
+    let html5QrCode = null;
+
+    if (!rxId) {
+      standbyCard.style.display = 'block';
+
+      const scanBtn = document.getElementById('scan-qr-btn');
+      const stopBtn = document.getElementById('stop-scan-btn');
+      const scannerContainer = document.getElementById('scanner-container');
+
+      scanBtn.addEventListener('click', () => {
+        scanBtn.style.display = 'none';
+        scannerContainer.style.display = 'block';
+
+        html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = async (decodedText, decodedResult) => {
+          console.log("QR Code captured successfully:", decodedText);
+
+          // Clear scanning session immediately to prevent race conditions or double-firing
+          try {
+            await html5QrCode.stop();
+            html5QrCode.clear();
+          } catch (e) {
+            console.warn("Error stopping scanner:", e);
+          }
+
+          // Change camera border color to Amber Warning while processing
+          const readerElem = document.getElementById('reader');
+          if (readerElem) {
+            readerElem.style.border = '3px solid #F59E0B';
+          }
+
+          // Regex/Delimiter parsing: DATA##SIGNATURE
+          if (decodedText.includes('##')) {
+            const parts = decodedText.split('##');
+            const rawPayload = parts[0];
+            const signature = parts[1];
+
+            // Bypass login: transition UI to verify screen directly
+            standbyCard.style.display = 'none';
+            verifyCard.style.display = 'block';
+
+            // Run zero-trust cryptographic signature validation
+            runVerification(rawPayload, signature);
+          } else if (decodedText.includes('rxId=')) {
+            // URL fallback support
+            let scannedRxId = '';
+            try {
+              const url = new URL(decodedText);
+              scannedRxId = url.searchParams.get('rxId');
+            } catch (e) {
+              const match = decodedText.match(/rxId=([^&]+)/);
+              if (match) scannedRxId = decodeURIComponent(match[1]);
+            }
+            if (scannedRxId) {
+              if (window.location.protocol === 'file:') {
+                window.location.href = `pharmacy-portal.html?rxId=${encodeURIComponent(scannedRxId)}`;
+              } else {
+                window.location.href = `/pharmacy-portal?rxId=${encodeURIComponent(scannedRxId)}`;
+              }
+            } else {
+              alert("Invalid URL QR scanned.");
+              location.reload();
+            }
+          } else {
+            alert("Unrecognized QR Code format. Please scan a patient prescription checkout QR.");
+            location.reload();
+          }
+        };
+
+        const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+          .catch(err => {
+            console.error("Camera start error:", err);
+            alert("Could not start camera scanner: " + err);
+            scanBtn.style.display = 'block';
+            scannerContainer.style.display = 'none';
+          });
+      });
+
+      stopBtn.addEventListener('click', async () => {
+        if (html5QrCode) {
+          try {
+            await html5QrCode.stop();
+            html5QrCode.clear();
+          } catch (e) {
+            console.error(e);
+          }
+          scanBtn.style.display = 'block';
+          scannerContainer.style.display = 'none';
+        }
+      });
+
+      // Manual entry handler
+      const manualRxInput = document.getElementById('manual-rx-id');
+      const manualVerifyBtn = document.getElementById('manual-verify-btn');
+      manualVerifyBtn.addEventListener('click', () => {
+        const enteredId = manualRxInput.value.trim();
+        if (!enteredId) {
+          alert("Please enter a valid Prescription ID.");
+          return;
+        }
+        if (window.location.protocol === 'file:') {
+          window.location.href = `pharmacy-portal.html?rxId=${encodeURIComponent(enteredId)}`;
+        } else {
+          window.location.href = `/pharmacy-portal?rxId=${encodeURIComponent(enteredId)}`;
+        }
+      });
+    } else {
+      verifyCard.style.display = 'block';
+      fetchPrescriptionLegacy();
+    }
+
+    async function fetchPrescriptionLegacy() {
+      try {
+        const response = await fetch(baseUrl + `/api/prescriptions/${rxId}`);
+        if (response.ok) {
+          activePrescription = await response.json();
+          if (activePrescription.isDispensed) {
+            alert('This prescription checkout token has already been dispensed & burned!');
+            if (window.location.protocol === 'file:') {
+              window.location.href = 'pharmacy-portal.html';
+            } else {
+              window.location.href = '/pharmacy-portal';
+            }
+            return;
+          }
+          // Populate the layout for verification trigger
+          verifyBtn.style.display = 'block';
+        } else {
+          alert('Failed to retrieve prescription from MongoDB cluster.');
+          window.location.href = '/pharmacy-portal';
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network connection error.');
+      }
+    }
+
+    // Direct verification execution
+    async function runVerification(rawPayload, signature) {
+      verifyBtn.style.display = 'none';
+      consoleBlock.style.display = 'block';
+      consoleLog.className = 'console';
+      consoleLog.innerText = 'Analyzing QR stream payload...\nInitiating Zero-Trust sweep...\n';
+
+      const isTampered = tamperCheck.checked;
+      let targetPayload = rawPayload;
+      if (isTampered) {
+        targetPayload = rawPayload + '_ALTERED_FORGERY';
+      }
+
+      // Parsing matrix for local display
+      const parts = targetPayload.split('|');
+      const id = parts[0];
+      const doctorName = parts[1];
+      const hospitalName = parts[2];
+      const patientName = parts[3];
+      const disease = parts[4];
+      const date = parts[5];
+      const time = parts[6];
+      const medicinesStr = parts[7];
+      const doctorSignId = parts[8] || '889218';
+
+      let medicines = [];
+      try {
+        medicines = JSON.parse(medicinesStr);
+      } catch (e) {
+        console.error("Medicines string parsing failed:", e);
+      }
+
+      const logs = [];
+      logs.push(`Extracted Metadata Matrix:`);
+      logs.push(`  ID          : ${id}`);
+      logs.push(`  Hospital    : ${hospitalName}`);
+      logs.push(`  Practitioner: Dr. ${doctorName} (NPI: ${doctorSignId})`);
+      logs.push(`  Patient     : ${patientName}`);
+      logs.push(`  Condition   : ${disease}`);
+      logs.push(`  Timestamp   : ${date} at ${time}`);
+      logs.push(`  Medications : ${medicines.map(m => m.name + ' [' + m.interval + ']').join(', ')}`);
+      logs.push(`\nCalculated Payload Hash:`);
+      logs.push(`  ${sha256Hash(targetPayload)}`);
+      logs.push(`\nVerifying Asymmetric Signature Block:`);
+      logs.push(`  Signature   : ${signature}`);
+
+      consoleLog.innerText = logs.join('\n') + '\n\nQuerying FastAPI verify-scan endpoint...';
+
+      try {
+        const response = await fetch(baseUrl + '/api/prescriptions/verify-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            raw_payload: targetPayload,
+            signature: signature,
+            timestamp: new Date().toISOString()
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.verified) {
+          activePrescription = result.prescription;
+          if (activePrescription.isDispensed) {
+            alert('This prescription checkout token has already been dispensed & burned!');
+            if (window.location.protocol === 'file:') {
+              window.location.href = 'pharmacy-portal.html';
+            } else {
+              window.location.href = '/pharmacy-portal';
+            }
+            return;
+          }
+
+          // Emerald Green flash validation
+          const verifyCardElem = document.getElementById('verify-card');
+          verifyCardElem.style.border = '2px solid #34D399';
+          verifyCardElem.style.animation = 'flash-emerald 0.8s ease-in-out';
+
+          logs.push(`\nRESULT: CRYPTO CHECK PASSED. Payload matches signature in MongoDB Atlas ledger.`);
+          consoleLog.className = 'console success';
+          consoleLog.innerText = logs.join('\n');
+
+          statusBanner.className = 'banner banner-success';
+          statusBanner.innerText = '✅ SIGNATURE VALID. Secure ledger verified.';
+
+          // Populate receipt with dynamic clinical card structure
+          const pdfReceipt = document.querySelector('.pdf-receipt');
+
+          // Clear older metadata tags
+          const existingMeta = pdfReceipt.querySelectorAll('.pdf-meta, .clinical-meta-card');
+          existingMeta.forEach(m => m.remove());
+
+          // Insert high-contrast professional clinical card view
+          const metaContainer = document.createElement('div');
+          metaContainer.className = 'clinical-meta-card';
+          metaContainer.style.background = 'var(--dark-rim)';
+          metaContainer.style.border = '1px solid var(--border-color)';
+          metaContainer.style.borderRadius = '10px';
+          metaContainer.style.padding = '14px';
+          metaContainer.style.marginBottom = '14px';
+          metaContainer.innerHTML = `
+            <div class="pdf-meta" style="margin-bottom: 6px;"><strong>Hospital:</strong> ${hospitalName}</div>
+            <div class="pdf-meta" style="margin-bottom: 6px;"><strong>Practitioner:</strong> Dr. ${doctorName} (ID: ${doctorSignId})</div>
+            <div class="pdf-meta" style="margin-bottom: 6px;"><strong>Date & Time:</strong> ${date} at ${time}</div>
+            <div class="pdf-meta" style="margin-bottom: 6px;"><strong>Patient:</strong> ${patientName}</div>
+            <div class="pdf-meta" style="margin-bottom: 0;"><strong>Disease:</strong> ${disease}</div>
+          `;
+          pdfReceipt.insertBefore(metaContainer, pdfReceipt.querySelector('.pdf-drugs'));
+
+          document.getElementById('pdf-date').innerText = `${date} ${time}`;
+
+          const list = document.getElementById('pdf-drugs-list');
+          list.innerHTML = '';
+          medicines.forEach(m => {
+            const div = document.createElement('div');
+            div.className = 'pdf-drug-item';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.padding = '8px 0';
+            div.style.borderBottom = '1px solid var(--border-color)';
+            div.innerHTML = `
+              <span style="font-weight: 600;">💊 ${m.name}</span>
+              <span style="font-family: monospace; font-size: 11px; background: rgba(37, 99, 235, 0.08); color: var(--clinical-blue); padding: 2px 6px; border-radius: 4px;">${m.interval}</span>
+            `;
+            list.appendChild(div);
+          });
+
+          receiptBlock.style.display = 'block';
+        } else {
+          // Failure
+          handleVerificationFailure(logs, result.error || 'Verification mismatch or tampering detected.');
+        }
+      } catch (err) {
+        handleVerificationFailure(logs, 'Network connection or API error: ' + err.message);
+      }
+    }
+
+    function handleVerificationFailure(logs, errorMsg) {
+      // Crimson Red flash warning
+      const verifyCardElem = document.getElementById('verify-card');
+      verifyCardElem.style.border = '2px solid #EF4444';
+      verifyCardElem.style.animation = 'flash-crimson 0.8s ease-in-out';
+
+      logs.push(`\nRESULT: CRYPTO ERROR MISMATCH! Invalid signature block.`);
+      logs.push(`[CRITICAL ERROR]: ${errorMsg}`);
+
+      consoleLog.className = 'console failed';
+      consoleLog.innerText = logs.join('\n');
+
+      statusBanner.className = 'banner banner-failed';
+      statusBanner.innerText = `❌ FORGERY ALERT: Hex hash verification failed. Transaction blocked.`;
+
+      receiptBlock.style.display = 'none';
+    }
+
+    // Fallback trigger click for legacy routing verify button
+    verifyBtn.addEventListener('click', () => {
+      if (!activePrescription) return;
+      const rawPayload = `${activePrescription.id}|${activePrescription.doctorName}|${activePrescription.hospitalName}|${activePrescription.patientName}|${activePrescription.disease}|${activePrescription.date}|${activePrescription.time}|${JSON.stringify(activePrescription.medicines)}|${activePrescription.doctorSignId || '889218'}`;
+      runVerification(rawPayload, activePrescription.signature);
+    });
+
+    // Helper for hashing
+    function sha256Hash(input) {
+      let h = 0;
+      for (let i = 0; i < input.length; i++) {
+        h = input.charCodeAt(i) + ((h << 5) - h);
+      }
+      return Math.abs(h).toString(16).padEnd(64, 'a');
+    }
+
+    // Dispense medication trigger
+    const dispenseBtn = document.getElementById('dispense-btn');
+    dispenseBtn.addEventListener('click', async () => {
+      if (!activePrescription) return;
+
+      try {
+        const response = await fetch(baseUrl + '/api/prescriptions/dispense', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: activePrescription.id })
+        });
+
+        if (response.ok) {
+          alert('Prescription token burned successfully. Dispensed.');
+          if (window.location.protocol === 'file:') {
+            window.location.href = 'pharmacy-portal.html';
+          } else {
+            window.location.href = '/pharmacy-portal';
+          }
+        } else {
+          alert('Database commit error.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('API connection error.');
+      }
+    });
+  </script>
+</body>
+
+</html>

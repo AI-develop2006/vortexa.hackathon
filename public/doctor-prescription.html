@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthLock — Prescription Desk</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .warning-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(220, 38, 38, 0.05);
+      border: 1px solid rgba(220, 38, 38, 0.15);
+      color: var(--crimson-lockout);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="glass-card" id="prescription-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h1>HealthLock</h1>
+        <button id="logout-btn" class="btn-text">LOGOUT PRACTITIONER</button>
+      </div>
+      <h2>Prescription Formulation Desk</h2>
+      <p class="subheader" style="margin-bottom: 16px;">Write structured medical credentials directly to MongoDB secure ledger.</p>
+      
+      <div id="success-banner" class="banner banner-success" style="display: none; margin-bottom: 16px;">
+        🎉 Prescription committed to MongoDB Secure cluster. Patient wallet updated dynamically. Redirecting...
+      </div>
+      
+      <form id="prescription-form">
+        <!-- Practitioner & Patient Metadata (Pre-filled) -->
+        <div class="meta-grid">
+          <div class="form-group">
+            <label>Practitioner Name</label>
+            <input type="text" id="doc-name-display" disabled>
+          </div>
+          <div class="form-group">
+            <label>Hospital / Clinic</label>
+            <input type="text" id="hospital-display" disabled>
+          </div>
+        </div>
+        
+        <div class="meta-grid">
+          <div class="form-group">
+            <label>Patient Name</label>
+            <input type="text" id="patient-display" disabled>
+          </div>
+          <div class="form-group">
+            <label>Practitioner License ID</label>
+            <input type="text" id="doc-id-display" disabled>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Consultation Date</label>
+          <input type="text" id="date-display" disabled>
+        </div>
+
+        <div class="form-group">
+          <label>Clinical Diagnosis / Disease</label>
+          <input type="text" id="diagnosis-input" placeholder="e.g. Hypertension Control" required>
+        </div>
+        
+        <!-- Dynamic Medications -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0 10px 0;">
+          <label style="margin-bottom: 0;">Prescribed Medications</label>
+          <button type="button" id="add-med-btn" class="btn-text">+ ADD MEDICINE</button>
+        </div>
+        
+        <div id="medicines-container">
+          <!-- Dynamic rows inserted here -->
+        </div>
+
+        <!-- Submit Button containing loading indicator -->
+        <div id="submit-box" style="margin-top: 16px;">
+          <button type="submit" id="submit-btn" class="btn btn-primary">
+            PUBLISH TRANSACTION TO MONGO-DB
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- AI Clinical Audit Modal -->
+  <div id="audit-modal" style="display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); align-items: center; justify-content: center;">
+    <div class="glass-card" style="max-width: 500px; width: 90%; padding: 24px; border: 1.5px solid var(--border-white); box-shadow: 0 10px 30px rgba(0,0,0,0.12);">
+      <h2 style="color: var(--crimson-lockout); font-weight: 800; display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        ⚠️ AI Clinical Audit Alerts
+      </h2>
+      <p class="subheader" style="margin-bottom: 16px;">The Healthcare AI Agent detected potential clinical issues with this prescription:</p>
+      
+      <div id="audit-warnings-list" style="margin-bottom: 16px; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+        <!-- Warnings dynamic injection -->
+      </div>
+
+      <div id="audit-alternatives-box" style="display: none; padding: 12px; border-radius: 8px; background: rgba(37, 99, 235, 0.05); border: 1px solid rgba(37, 99, 235, 0.15); margin-bottom: 20px;">
+        <h3 style="font-size: 11px; font-weight: bold; color: var(--clinical-blue); margin-bottom: 6px;">AI RECOMMENDED ALTERNATIVES (CEREBRAS API):</h3>
+        <div id="audit-alternatives-list" style="font-size: 11px; color: var(--primary-text); line-height: 1.5;"></div>
+      </div>
+
+      <div style="display: flex; gap: 12px; margin-top: 20px;">
+        <button id="audit-proceed-btn" class="btn" style="background-color: var(--crimson-lockout); border-color: var(--crimson-lockout); color: white; flex: 1;">
+          OVERRULE & PUBLISH
+        </button>
+        <button id="audit-cancel-btn" class="btn btn-secondary" style="flex: 1;">
+          CANCEL & REVISE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Verify sessionStorage data
+    const patientName = sessionStorage.getItem('patientName');
+    const doctorName = sessionStorage.getItem('doctorName');
+    const hospitalName = sessionStorage.getItem('hospitalName');
+    const doctorMobile = sessionStorage.getItem('doctorMobile');
+    
+    const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:5000' : '';
+
+    if (!patientName || !doctorName || !hospitalName || !doctorMobile) {
+      if (window.location.protocol === 'file:') {
+        window.location.href = 'doctor-login.html';
+      } else {
+        window.location.href = '/doctor-login';
+      }
+    }
+
+    // Pre-fill static fields
+    document.getElementById('patient-display').value = patientName;
+    document.getElementById('doc-name-display').value = doctorName;
+    document.getElementById('hospital-display').value = hospitalName;
+    document.getElementById('doc-id-display').value = doctorMobile;
+    
+    const today = new Date();
+    document.getElementById('date-display').value = today.toISOString().substring(0,10);
+
+    // Logout
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      sessionStorage.clear();
+      if (window.location.protocol === 'file:') {
+        window.location.href = 'doctor-login.html';
+      } else {
+        window.location.href = '/doctor-login';
+      }
+    });
+
+    const medContainer = document.getElementById('medicines-container');
+    let medCount = 0;
+
+    function createMedRow() {
+      medCount++;
+      const rowId = `med-row-${medCount}`;
+      const div = document.createElement('div');
+      div.className = 'medicine-row';
+      div.id = rowId;
+      div.innerHTML = `
+        <button type="button" class="delete-btn" onclick="removeMedRow('${rowId}')">&times;</button>
+        <div class="form-group">
+          <label>Medicine Name</label>
+          <input type="text" class="med-name" placeholder="e.g. Lisinopril 20mg" required>
+        </div>
+        <div class="med-grid">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Intake Schedule</label>
+            <div class="med-check-grid">
+              <label class="checkbox-label"><input type="checkbox" class="time-chk" value="Morning">Morn</label>
+              <label class="checkbox-label"><input type="checkbox" class="time-chk" value="Afternoon">Noon</label>
+              <label class="checkbox-label"><input type="checkbox" class="time-chk" value="Evening">Eve</label>
+              <label class="checkbox-label"><input type="checkbox" class="time-chk" value="Night">Night</label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label>Time-Range / Interval</label>
+            <input type="text" class="med-interval" placeholder="e.g. 10 days / Once daily" required>
+          </div>
+        </div>
+      `;
+      medContainer.appendChild(div);
+    }
+
+    function removeMedRow(id) {
+      if (medContainer.children.length > 1) {
+        const row = document.getElementById(id);
+        medContainer.removeChild(row);
+      }
+    }
+
+    // Insert first row initially
+    createMedRow();
+    document.getElementById('add-med-btn').addEventListener('click', createMedRow);
+
+    // Form Submission containing AI Audit loop
+    document.getElementById('prescription-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const rows = medContainer.getElementsByClassName('medicine-row');
+      const medicines = [];
+      
+      for (let row of rows) {
+        const nameVal = row.querySelector('.med-name').value.trim();
+        const rangeVal = row.querySelector('.med-interval').value.trim();
+        
+        const timeChks = row.querySelectorAll('.time-chk:checked');
+        const times = Array.from(timeChks).map(chk => chk.value);
+        const timeDisplay = times.length > 0 ? `[${times.join(', ')}]` : '';
+        
+        medicines.push({
+          name: nameVal,
+          interval: `${timeDisplay} ${rangeVal}`.trim()
+        });
+      }
+
+      if (medicines.length === 0) {
+        alert('Please add at least one medication.');
+        return;
+      }
+
+      // Format payload
+      const tempId = `RX-${Math.floor(Math.random() * 9000) + 1000}`;
+      const now = new Date();
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      const payload = {
+        id: tempId,
+        doctorName: doctorName,
+        hospitalName: hospitalName,
+        patientName: patientName,
+        disease: document.getElementById('diagnosis-input').value.trim(),
+        date: today.toISOString().substring(0, 10),
+        time: timeStr,
+        medicines: medicines,
+        doctorSignId: doctorMobile
+      };
+
+      // Show auditing loader
+      const submitBtn = document.getElementById('submit-btn');
+      const originalText = submitBtn.innerText;
+      submitBtn.disabled = true;
+      submitBtn.innerText = '🛡️ RUNNING AI CLINICAL AUDIT...';
+
+      // ──────────────────────────────────────────────
+      // AI AGENT CLINICAL AUDIT CHECKS
+      // ──────────────────────────────────────────────
+      const warnings = [];
+      const alternatives = [];
+
+      for (let med of medicines) {
+        // Extract base medicine name and dosage (e.g. "Lisinopril 10mg" -> "Lisinopril" and "10mg")
+        const nameParts = med.name.split(' ');
+        const baseName = nameParts[0];
+        const dosageVal = nameParts.slice(1).join(' ') || 'Standard Dose';
+
+        try {
+          const auditResponse = await fetch(baseUrl + '/api/audit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              patient_id: patientName,
+              doctor_id: doctorName,
+              new_medicine: baseName,
+              new_dosage: dosageVal,
+              disease: payload.disease
+            })
+          });
+
+          if (auditResponse.ok) {
+            const audit = await auditResponse.json();
+            const dup = audit.duplicate_check || {};
+            const allergy = audit.allergy_check || {};
+            const interaction = audit.interaction_check || {};
+            const pattern = audit.pattern_analysis || {};
+
+            if (dup.is_duplicate) {
+              warnings.push(`⚠️ DUPLICATE FOUND: "${baseName}" already active in patient record.`);
+            }
+            if (allergy.allergy_conflict) {
+              warnings.push(`🚨 ALLERGY CONFLICT: Patient is allergic to "${baseName}". Severity: ${allergy.severity}.`);
+              if (allergy.suggested_alternatives && allergy.suggested_alternatives.length > 0) {
+                alternatives.push(`For "${baseName}": ${allergy.suggested_alternatives.join(', ')}`);
+              }
+            }
+            if (interaction.interaction_risk && interaction.interaction_risk !== 'LOW') {
+              warnings.push(`⚠️ INTERACTION WARNING (${interaction.interaction_risk}): ${interaction.interaction_details}`);
+              if (interaction.alternatives && interaction.alternatives.length > 0) {
+                alternatives.push(`For "${med.name}": ${interaction.alternatives.join(', ')}`);
+              }
+            }
+            if (pattern.pattern_type && pattern.pattern_type !== 'NORMAL') {
+              warnings.push(`🩺 PRESCRIBING ANOMALY: Doctor history flag is "${pattern.pattern_type}". ${pattern.recommendation}`);
+            }
+          }
+        } catch(err) {
+          console.warn("AI Agent Core API offline. Proceeding to bypass audit.", err);
+        }
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = originalText;
+
+      // If warnings exist, trigger modal, otherwise proceed to commit directly
+      if (warnings.length > 0) {
+        showAuditModal(warnings, alternatives, () => commitPrescription(payload));
+      } else {
+        await commitPrescription(payload);
+      }
+    });
+
+    function showAuditModal(warnings, alternatives, onProceed) {
+      const modal = document.getElementById('audit-modal');
+      const warningsList = document.getElementById('audit-warnings-list');
+      const altBox = document.getElementById('audit-alternatives-box');
+      const altList = document.getElementById('audit-alternatives-list');
+      const proceedBtn = document.getElementById('audit-proceed-btn');
+      const cancelBtn = document.getElementById('audit-cancel-btn');
+
+      // Populate warnings
+      warningsList.innerHTML = '';
+      warnings.forEach(warn => {
+        const div = document.createElement('div');
+        div.className = 'warning-item';
+        div.innerText = warn;
+        warningsList.appendChild(div);
+      });
+
+      // Populate alternatives if available
+      if (alternatives.length > 0) {
+        altBox.style.display = 'block';
+        altList.innerHTML = alternatives.map(alt => `• ${alt}`).join('<br>');
+      } else {
+        altBox.style.display = 'none';
+      }
+
+      modal.style.display = 'flex';
+
+      // Attach button events
+      proceedBtn.onclick = () => {
+        modal.style.display = 'none';
+        onProceed();
+      };
+
+      cancelBtn.onclick = () => {
+        modal.style.display = 'none';
+      };
+    }
+
+    async function commitPrescription(payload) {
+      try {
+        const response = await fetch(baseUrl + '/api/prescriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          document.getElementById('success-banner').style.display = 'flex';
+          setTimeout(() => {
+            sessionStorage.clear();
+            if (window.location.protocol === 'file:') {
+              window.location.href = 'doctor-login.html';
+            } else {
+              window.location.href = '/doctor-login';
+            }
+          }, 2000);
+        } else {
+          alert('Failed to publish transaction to database.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Network error connecting to ledger node.');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HealthLock — Doctor Access</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Load HTML5-QRCode Scanner Library -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loader-spinner {
+      border: 4px solid var(--border-white);
+      border-top: 4px solid var(--clinical-blue) !important;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="glass-card" id="login-card">
+      <h1>HealthLock</h1>
+      <h2 id="portal-title">Doctor Login</h2>
+      <p class="subheader">Verify your practitioner identity to begin a consultation session.</p>
+
+      <div id="gatekeeper-error" class="banner banner-failed" style="display: none;">
+        🔒 Access Locked. Please scan the patient's 'Start Consultation' QR code from their HealthLock app to proceed.
+      </div>
+
+      <!-- Waiting for Patient Approval screen -->
+      <div id="approval-waiting-card" style="display: none; text-align: center; padding: 24px 0;">
+        <div class="loader-spinner" style="margin: 0 auto 16px auto;"></div>
+        <p style="font-weight: bold; font-size: 15px; color: var(--primary-text);">Awaiting Patient Approval...</p>
+        <p style="font-size: 12px; color: var(--muted-text); margin-top: 8px; line-height: 1.4;">
+          Please instruct the patient to open their <strong>HealthLock Wallet App</strong> and tap <strong>"ACCEPT ACCESS"</strong> on the pending <em>Practitioner Link Request</em> alert card in their Vault view.
+        </p>
+        <div id="approval-error" class="banner banner-failed"
+          style="display: none; margin-top: 16px; justify-content: center; align-items: center;">
+          ❌ Request rejected by patient.
+        </div>
+      </div>
+
+      <!-- QR Scanner Camera stream container -->
+      <div id="scanner-container" style="display: none; margin-top: 16px; text-align: center;">
+        <div id="reader"
+          style="width: 100%; max-width: 320px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 1.5px solid var(--border-white); background: #000;">
+        </div>
+        <button id="stop-scan-btn" class="btn btn-secondary"
+          style="margin-top: 12px; background-color: var(--crimson-lockout); border-color: var(--crimson-lockout); color: white;">
+          CANCEL CAMERA SCAN
+        </button>
+      </div>
+
+      <button id="scan-qr-btn" class="btn btn-secondary"
+        style="display: none; margin-top: 16px; width: 100%; justify-content: center; align-items: center; gap: 8px;">
+        📷 SCAN PATIENT CONSULTATION QR
+      </button>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label id="patient-label">Patient Name (Verified)</label>
+          <input type="text" id="patient-display" value="" disabled placeholder="Scan QR code or enter name manually">
+        </div>
+
+        <div id="doctor-fields" style="display: none;">
+          <div id="doctor-name-group" class="form-group" style="display: none;">
+            <label>Doctor Full Name</label>
+            <input type="text" id="doctor-name" placeholder="Dr. Amit Raj">
+          </div>
+
+          <div id="hospital-name-group" class="form-group" style="display: none;">
+            <label>Hospital / Clinic Name</label>
+            <input type="text" id="hospital-name" placeholder="Metro Heart Institute">
+          </div>
+
+          <div class="form-group">
+            <label>Doctor ID / License Number</label>
+            <input type="number" id="doctor-mobile" placeholder="992818" required>
+          </div>
+
+          <button type="submit" id="submit-btn" class="btn btn-primary" style="margin-top: 12px;">
+            SIGN IN & START CONSULTATION
+          </button>
+
+          <div style="text-align: center; margin-top: 16px;">
+            <button type="button" id="toggle-mode-btn" class="btn-text"
+              style="color: var(--clinical-blue); background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 600;">
+              First time here? Register as a Practitioner
+            </button>
+          </div>
+        </div>
+
+        <button type="button" id="request-access-btn" class="btn btn-primary" style="margin-top: 12px; display: none;">
+          SEND CONNECTION REQUEST TO PATIENT
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const baseUrl = window.location.protocol === 'file:' ? 'http://127.0.0.1:5000' : '';
+
+    // Extract Patient from URL query param
+    const urlParams = new URLSearchParams(window.location.search);
+    const patientName = urlParams.get('patient');
+
+    const patientDisplay = document.getElementById('patient-display');
+    const loginForm = document.getElementById('login-form');
+    const gateError = document.getElementById('gatekeeper-error');
+    const waitingCard = document.getElementById('approval-waiting-card');
+    const approvalError = document.getElementById('approval-error');
+    const doctorFields = document.getElementById('doctor-fields');
+    const requestAccessBtn = document.getElementById('request-access-btn');
+    const patientLabel = document.getElementById('patient-label');
+
+    let activePatientName = patientName;
+
+    if (!activePatientName) {
+      // Locked gate: Patient QR has not been scanned! Enable manual entry fallback.
+      document.getElementById('portal-title').innerText = 'Doctor Authorization Gate';
+      patientLabel.innerText = 'Patient Name / ID';
+      patientDisplay.disabled = false;
+      patientDisplay.placeholder = 'Enter Patient Name or scan QR code';
+      
+      // Show request access button
+      requestAccessBtn.style.display = 'block';
+
+      const scanBtn = document.getElementById('scan-qr-btn');
+      const stopBtn = document.getElementById('stop-scan-btn');
+      const scannerContainer = document.getElementById('scanner-container');
+
+      scanBtn.style.display = 'flex';
+
+      let html5QrCode = null;
+
+      scanBtn.addEventListener('click', () => {
+        scanBtn.style.display = 'none';
+        scannerContainer.style.display = 'block';
+
+        html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = async (decodedText, decodedResult) => {
+          let scannedPatient = decodedText;
+          
+          try {
+            await html5QrCode.stop();
+            html5QrCode.clear();
+          } catch(e) {
+            console.warn("Scanner stop error:", e);
+          }
+
+          // If a full consultation URL was scanned, extract the patient param
+          if (decodedText.includes('patient=')) {
+            try {
+              const url = new URL(decodedText);
+              scannedPatient = url.searchParams.get('patient');
+            } catch (e) {
+              // Fallback to query parsing manually
+              const match = decodedText.match(/patient=([^&]+)/);
+              if (match) scannedPatient = decodeURIComponent(match[1]);
+            }
+          }
+
+          if (scannedPatient) {
+            activePatientName = scannedPatient;
+            patientDisplay.value = scannedPatient;
+            patientDisplay.disabled = true;
+            patientLabel.innerText = 'Patient Name (Verified QR)';
+            
+            // Hide scanner
+            scanBtn.style.display = 'none';
+            scannerContainer.style.display = 'none';
+            
+            // Initiate consultation request automatically
+            loginForm.style.display = 'none';
+            waitingCard.style.display = 'block';
+            startConsultationRequest(activePatientName);
+          } else {
+            alert("Invalid QR Code content. Make sure to scan the Consultation QR.");
+            location.reload();
+          }
+        };
+
+        const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+          .catch(err => {
+            console.error("Camera start error:", err);
+            alert("Could not start camera scanner: " + err);
+            scanBtn.style.display = 'flex';
+            scannerContainer.style.display = 'none';
+          });
+      });
+
+      stopBtn.addEventListener('click', async () => {
+        if (html5QrCode) {
+          try {
+            await html5QrCode.stop();
+            html5QrCode.clear();
+          } catch (e) {
+            console.error(e);
+          }
+          scanBtn.style.display = 'flex';
+          scannerContainer.style.display = 'none';
+        }
+      });
+
+      // Setup Manual connection request trigger
+      requestAccessBtn.addEventListener('click', () => {
+        const enteredVal = patientDisplay.value.trim();
+        if (!enteredVal) {
+          alert("Please enter the Patient Name or scan their consultation QR code.");
+          return;
+        }
+        activePatientName = enteredVal;
+        
+        // Hide form and show approval spinner
+        loginForm.style.display = 'none';
+        waitingCard.style.display = 'block';
+        
+        startConsultationRequest(activePatientName);
+      });
+    } else {
+      patientDisplay.value = activePatientName;
+      patientDisplay.disabled = true;
+
+      // Hide login form initially, show waiting screen
+      loginForm.style.display = 'none';
+      waitingCard.style.display = 'block';
+
+      // Request consultation access
+      startConsultationRequest(activePatientName);
+    }
+
+    async function startConsultationRequest(patient) {
+      try {
+        const response = await fetch(baseUrl + '/api/consultation/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ patientName: patient, patientId: patient })
+        });
+
+        if (response.ok) {
+          const reqData = await response.json();
+          const reqId = reqData.id;
+          pollRequestStatus(reqId);
+        } else {
+          showAccessError("Could not initialize consultation session on backend.");
+        }
+      } catch (err) {
+        console.error(err);
+        showAccessError("Network error connecting to backend.");
+      }
+    }
+
+    function showAccessError(msg) {
+      waitingCard.querySelector('p').innerText = "Access Request Failed";
+      waitingCard.querySelector('.loader-spinner').style.display = 'none';
+      approvalError.innerText = msg;
+      approvalError.style.display = 'flex';
+    }
+
+    function pollRequestStatus(reqId) {
+      const interval = setInterval(async () => {
+        try {
+          const response = await fetch(baseUrl + `/api/consultation/status/${reqId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'accepted') {
+              clearInterval(interval);
+              // Hide waiting card, show login form
+              waitingCard.style.display = 'none';
+              loginForm.style.display = 'block';
+              doctorFields.style.display = 'block';
+              requestAccessBtn.style.display = 'none';
+              patientDisplay.disabled = true;
+            } else if (data.status === 'rejected') {
+              clearInterval(interval);
+              showAccessError("Access rejected by patient.");
+            }
+          } else {
+            clearInterval(interval);
+            showAccessError("Error checking authorization status.");
+          }
+        } catch (err) {
+          console.error(err);
+          clearInterval(interval);
+          showAccessError("Network connection lost during authorization check.");
+        }
+      }, 1500);
+    }
+
+    let isRegisterMode = false;
+    const docNameGroup = document.getElementById('doctor-name-group');
+    const hospNameGroup = document.getElementById('hospital-name-group');
+    const docNameInput = document.getElementById('doctor-name');
+    const hospNameInput = document.getElementById('hospital-name');
+    const submitBtn = document.getElementById('submit-btn');
+    const toggleModeBtn = document.getElementById('toggle-mode-btn');
+
+    toggleModeBtn.addEventListener('click', () => {
+      isRegisterMode = !isRegisterMode;
+      if (isRegisterMode) {
+        docNameGroup.style.display = 'block';
+        hospNameGroup.style.display = 'block';
+        docNameInput.required = true;
+        hospNameInput.required = true;
+        submitBtn.innerText = 'REGISTER & START CONSULTATION';
+        toggleModeBtn.innerText = 'Already registered? Sign In';
+        document.getElementById('portal-title').innerText = 'Doctor Registration';
+      } else {
+        docNameGroup.style.display = 'none';
+        hospNameGroup.style.display = 'none';
+        docNameInput.required = false;
+        hospNameInput.required = false;
+        submitBtn.innerText = 'SIGN IN & START CONSULTATION';
+        toggleModeBtn.innerText = 'First time here? Register as a Practitioner';
+        document.getElementById('portal-title').innerText = 'Doctor Login';
+      }
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const docName = docNameInput.value.trim();
+      const hospName = hospNameInput.value.trim();
+      const docMobile = document.getElementById('doctor-mobile').value.trim();
+
+      const url = baseUrl + (isRegisterMode ? '/api/doctor/register' : '/api/doctor/login');
+      const bodyPayload = isRegisterMode
+        ? { name: docName, hospitalName: hospName, doctorMobile: docMobile }
+        : { doctorMobile: docMobile };
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyPayload)
+        });
+
+        if (response.ok) {
+          const docData = await response.json();
+          // Save doctor metadata and patient details in sessionStorage
+          sessionStorage.setItem('patientName', activePatientName);
+          sessionStorage.setItem('doctorName', docData.name || docName);
+          sessionStorage.setItem('hospitalName', docData.hospitalName || hospName);
+          sessionStorage.setItem('doctorMobile', docData.doctor_id || docMobile);
+
+          // Redirect to form
+          if (window.location.protocol === 'file:') {
+            window.location.href = 'doctor-prescription.html';
+          } else {
+            window.location.href = '/doctor-prescription';
+          }
+        } else {
+          const errData = await response.json();
+          alert(errData.error || "Failed to authenticate practitioner.");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("Network error occurred during practitioner verification.");
+      }
+    });
+  </script>
+</body>
+
+</html>

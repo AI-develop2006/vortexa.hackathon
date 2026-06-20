@@ -5,6 +5,12 @@
     "name": "Priya Sharma",
     "age": 45,
     "gender": "Female"
+  },
+  {
+    "patient_id": "Elena Vance",
+    "name": "Elena Vance",
+    "age": 28,
+    "gender": "Female"
   }
 ],
 "allergies": [
@@ -17,9 +23,35 @@
     "patient_id": "Priya_123",
     "allergy_name": "Sulfa",
     "severity": "MEDIUM"
+  },
+  {
+    "patient_id": "Elena Vance",
+    "allergy_name": "Penicillin",
+    "severity": "HIGH"
+  },
+  {
+    "patient_id": "Elena Vance",
+    "allergy_name": "Sulfa",
+    "severity": "MEDIUM"
   }
 ],
 "prescriptions": [
+  {
+    "patient_id": "Elena Vance",
+    "medicine": "Albuterol Inhaler",
+    "dosage": "90mcg",
+    "frequency": "2 puffs every 4 hours",
+    "doctor_id": "Marcus Vance",
+    "date": "2026-06-19T14:20:00"
+  },
+  {
+    "patient_id": "Elena Vance",
+    "medicine": "Metformin",
+    "dosage": "500mg",
+    "frequency": "twice daily",
+    "doctor_id": "Dr_Arun_456",
+    "date": "2026-06-20T14:46:00"
+  },
   {
     "patient_id": "Priya_123",
     "medicine": "Metformin",
